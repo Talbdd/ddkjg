@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>道路模型 - 参数化设计与施工模拟 (V15.9 Final)</title>
+    <style>
+        /* --- 全局样式 --- */
+        :root { --panel-bg: rgba(255, 255, 255, 0.98); --text-color: #333; --border-color: #ddd; --input-bg: #fff; --input-border: #ccc; --header-bg: #f7f7f7; }
+        body { margin: 0; font-family: Arial, sans-serif; background-color: #cccccc; color: var(--text-color); overflow: hidden; font-size: 14px; }
+        #scene-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        
+        /* --- 通用UI面板 --- */
+        .ui-panel { position: absolute; padding: 10px 15px; background: var(--panel-bg); border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); }
+        #control-panel { top: 15px; left: 15px; width: 420px; max-height: 90vh; display: flex; flex-direction: column; }
+        #legend-panel { top: 15px; right: 15px; width: 220px; }
+        #panel-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--border-color); flex-wrap: wrap; gap: 5px;}
+        #panel-header h3 { margin: 0; }
+        .panel-button { padding: 4px 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f0f0f0; cursor: pointer; }
+        .panel-button:hover { background-color: #e0e0e0; }
+        #groups-container { overflow-y: auto; flex-grow: 1; }
+
+        /* --- 图例与功能区 --- */
+        h3 { margin-top: 0; margin-bottom: 10px; }
+        .legend-item { display: flex; align-items: center; margin-top: 5px; font-size: 13px; }
+        .legend-color { width: 18px; height: 18px; margin-right: 8px; border: 1px solid #777; }
+        .action-button { width: 100%; padding: 8px; margin-top: 10px; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        .action-button:hover { opacity: 0.85; }
+        #explode-button { background-color: #007bff; }
+        #reset-button { background-color: #dc3545; }
+        .settings-group { margin-top: 15px; padding-top: 10px; border-top: 1px solid var(--border-color); }
+        .settings-group label { display: inline-block; margin-bottom: 5px; vertical-align: middle; }
+        .filter-buttons { display: flex; justify-content: space-between; gap: 5px; }
+        .filter-buttons button { flex-grow: 1; padding: 5px; }
+        .filter-buttons button.active { background-color: #007bff; color: white; border-color: #007bff; }
+        
+        /* --- 可折叠的组 --- */
+        details { border-bottom: 1px solid var(--border-color); }
+        details:last-child { border-bottom: none; }
+        summary { font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 5px; user-select: none; display: flex; justify-content: space-between; align-items: center; background-color: var(--header-bg); }
+        .summary-title { flex-grow: 1; }
+        .summary-box { border: 1px solid #a0a0a0; padding: 2px 5px; border-radius: 4px; font-size: 12px; font-weight: normal; margin-left: 6px; text-align: center; background-color: #f4f4f4; }
+        .summary-items { display: flex; align-items: center; gap: 8px; }
+
+        /* --- 图层编辑器 (新布局) --- */
+        .layer-editor { padding: 5px 10px; }
+        .layer-row { display: flex; flex-direction: column; padding: 6px 0; border-bottom: 1px solid #eee; }
+        .layer-row:last-child { border-bottom: none; }
+        .layer-top-row, .layer-bottom-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+        .layer-top-row { margin-bottom: 6px; }
+        .layer-bottom-row select { width: 90px; }
+        .layer-bottom-row input[type="number"] { width: 50px; }
+        .layer-bottom-row input[type="text"] { flex-grow: 1; }
+        .progress-input-container { flex-grow: 1; }
+        .layer-actions { white-space: nowrap; }
+
+        .layer-row input, .layer-row select { padding: 4px; border: 1px solid var(--input-border); border-radius: 4px; background-color: var(--input-bg); }
+        .layer-actions button { font-family: monospace; font-weight: bold; font-size: 14px; width: 22px; height: 22px; border: 1px solid #ccc; border-radius: 4px; margin-left: 2px; cursor: pointer; background-color: #f0f0f0; }
+        .layer-actions button:hover { background-color: #e0e0e0; }
+
+        /* --- 进度条样式 (新样式) --- */
+        .progress-bar-container { width: 100px; height: 22px; background-color: #e9ecef; border-radius: 11px; overflow: hidden; position: relative; vertical-align: middle; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); }
+        .progress-bar-fill { background-color: #28a745; height: 100%; border-radius: 11px; transition: width 0.3s ease-in-out; }
+        .progress-bar-text { position: absolute; top: 0; left: 0; width: 100%; height: 100%; text-align: center; color: white; font-size: 12px; line-height: 22px; font-weight: bold; text-shadow: 1px 1px 1px rgba(0,0,0,0.4); }
+
+        /* --- 模态框 --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: #fff; padding: 20px; border-radius: 8px; width: 600px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .modal-content h3 { margin-top: 0; }
+        .modal-actions { margin-top: 20px; text-align: right; }
+        .modal-button { padding: 8px 15px; border-radius: 5px; border: 1px solid #ccc; cursor: pointer; margin-left: 10px; }
+        .modal-button.primary { background-color: #007bff; color: white; border-color: #007bff; }
+        #structure-list, #segment-list { list-style: none; padding: 0; margin: 0; max-height: 60vh; overflow-y: auto; border: 1px solid #ddd; }
+        #structure-list li, #segment-list li { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #eee; background: #fff; gap: 8px; }
+        #structure-list li:last-child, #segment-list li:last-child { border-bottom: none; }
+        #structure-list li input, #segment-list li input, #segment-list li select { margin: 0 2px; padding: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        .structure-name { flex-grow: 1; }
+        .structure-actions, .segment-actions { white-space: nowrap; }
+        .structure-actions button, .segment-actions button { margin: 0 2px; font-family: monospace; font-weight: bold; }
+        #add-group-btn, #add-segment-btn { margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div id="scene-container"></div>
+
+    <div id="legend-panel" class="ui-panel">
+        <h3>道路结构图例</h3>
+        <div id="legend">
+            
+<div class="legend-item"><div class="legend-color" style="background-color: #6ca0dc;"></div>桥梁/水体</div>
+            <div class="legend-item"><div class="legend-color" style="background-color: #4B5358;"></div>沥青层</div>
+            <div class="legend-item"><div class="legend-color" style="background-color: #BDBDAA;"></div>水稳层</div>
+            <div class="legend-item"><div class="legend-color" style="background-color: #FFA500;"></div>灰土层</div>
+            <div class="legend-item"><div class="legend-color" style="background-color: #FFFF99;"></div>人行道</div>
+            <div class="legend-item"><div class="legend-color" style="background-color: #2E8B57;"></div>分隔带</div>
+            <div class="legend-item"><div class="legend-color" style="background-color: #1E90FF;"></div>雨水管道</div>
+            <div class="legend-item"><div class="legend-color" style="background-color: #C0C0C0;"></div>污水管道</div>
+            <div class="legend-item"><div class="legend-color" style="background-color: #FF69B4;"></div>电力管道</div>
+            <div class="legend-item"><div class="legend-color" style="background-color: #90EE90;"></div>给水管道</div>
+            <div class="legend-item"><div class="legend-color" style="background-color: #FF4500;"></div>燃气管道</div>
+            
+        </div>
+        <div class="settings-group">
+            <label>时间筛选:</label>
+            <div class="filter-buttons">
+                <button id="filter-all" class="panel-button active">全部</button>
+                <button id="filter-month" class="panel-button">本月</button>
+                <button id="filter-week" class="panel-button">本周</button>
+            </div>
+        </div>
+        <div class="settings-group">
+            <label>道路走向:</label>
+            <div>
+                <input type="radio" id="dir-ns" name="direction" value="ns" checked><label for="dir-ns">南北</label>
+                <input type="radio" id="dir-ew" name="direction" value="ew"><label for="dir-ew">东西</label>
+            </div>
+        </div>
+        <div class="settings-group">
+            <label for="stake-interval-input">桩号间距 (米):</label>
+            <input type="number" id="stake-interval-input" value="20" step="1" style="width: 80px; padding: 5px;">
+        </div>
+        
+        <div class="settings-group">
+             <label for="show-exploded-labels-toggle">
+                <input type="checkbox" id="show-exploded-labels-toggle" checked style="vertical-align: middle;">
+                显示分离桩号
+            </label>
+        </div>
+        
+        <button id="explode-button" class="action-button">垂直分离</button>
+        <button id="reset-button" class="action-button">恢复默认值</button>
+    </div>
+
+    <div id="control-panel" class="ui-panel">
+        <div id="panel-header">
+            <h3>结构与进度</h3>
+            <div id="total-progress-container"></div>
+            <button id="edit-segments-btn" class="panel-button">编辑路线分段</button>
+            <button id="edit-structure-btn" class="panel-button">编辑水平结构</button>
+        </div>
+        <div id="groups-container"></div>
+    </div>
+    
+    <div id="structure-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>编辑道路水平结构</h3>
+            <ul id="structure-list"></ul>
+            <button id="add-group-btn" class="panel-button">＋ 添加区块</button>
+            <div class="modal-actions">
+                <button class="modal-button" onclick="closeModal('structure-modal')">取消</button>
+                <button class="modal-button primary" onclick="applyStructureChanges()">应用</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="segments-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>编辑路线分段</h3>
+            <ul id="segment-list"></ul>
+            <button id="add-segment-btn" class="panel-button">＋ 添加分段</button>
+            <div class="modal-actions">
+                <button class="modal-button" onclick="closeModal('segments-modal')">取消</button>
+                <button class="modal-button primary" onclick="applySegmentChanges()">应用并重建</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        let scene, camera, renderer, controls, roadContainer, placeholderContainer;
+        let topLevelLabelsContainer, explodedLabelsContainer;
+
+        const sceneMeshes = {};
+        let isExplodedView = false;
+        let totalRoadLength = 0;
+        let zOffsetMap = new Map();
+        let activeFilter = { type: 'all', start: null, end: null };
+
+        const typeTranslations = { 
+
+asphalt: '沥青层', base: '水稳层', subgrade: '灰土层', sidewalk: '人行道', median: '分隔带',
+            pipe_storm: '雨水管道', pipe_sewage: '污水管道', pipe_power: '电力管道',
+            pipe_water: '给水管道', pipe_gas: '燃气管道',
+        
+};
+
+        const solidMaterials = { 
+            asphalt: new THREE.MeshStandardMaterial({ color: 0x4B5358, roughness: 0.7 }),
+            base: new THREE.MeshStandardMaterial({ color: 0xBDBDAA, roughness: 0.8 }),
+            subgrade: new THREE.MeshStandardMaterial({ color: 0xFFA500, roughness: 0.9 }),
+            sidewalk: new THREE.MeshStandardMaterial({ color: 0xFFFF99, roughness: 0.8 }),
+            median: new THREE.MeshStandardMaterial({ color: 0x2E8B57, roughness: 0.8 }),
+            pipe_storm: new THREE.MeshStandardMaterial({ color: 0x1E90FF, roughness: 0.6 }),
+            pipe_sewage: new THREE.MeshStandardMaterial({ color: 0xC0C0C0, roughness: 0.6 }),
+            pipe_power: new THREE.MeshStandardMaterial({ color: 0xFF69B4, roughness: 0.6 }),
+            pipe_water: new THREE.MeshStandardMaterial({ color: 0x90EE90, roughness: 0.6 }),
+            pipe_gas: new THREE.MeshStandardMaterial({ color: 0xFF4500, roughness: 0.6 }),
+        
+};
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x333333 });
+        const pipeLineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+        const redLineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+        
+        const faintMaterials = {};
+        for (const key in solidMaterials) {
+            faintMaterials[key] = solidMaterials[key].clone();
+            faintMaterials[key].transparent = true;
+            faintMaterials[key].opacity = 0.15;
+        }
+        const placeholderMaterial = new THREE.MeshStandardMaterial({
+            color: 0xaaaaaa,
+            transparent: true,
+            opacity: 0.1,
+            roughness: 0.9
+        });
+        
+        const defaultRoadData = {
+            orientation: 'ns',
+            stakeInterval: 20,
+            segments: [
+                { id: `seg_${Date.now()}_1`, start: 19.884, end: 500, type: 'road' },
+                { id: `seg_${Date.now()}_2`, start: 500, end: 570, type: 'bridge' },
+                { id: `seg_${Date.now()}_3`, start: 570, end: 889.18, type: 'road' },
+            ],
+            groups: [
+                { id: "group_road_west", name: "西侧车道", width: 7.5, type: "road" },
+                { id: "group_sidewalk_west", name: "西-人行道", width: 3.5, type: "sidewalk" },
+                { id: "group_center", name: "中央分隔带", width: 2.5, type: "median" },
+                { id: "group_sidewalk_east", name: "东-人行道", width: 3.5, type: "sidewalk" },
+            ],
+            layers: [
+                { id: "layer_asphalt_west", groupId: "group_road_west", name: "沥青层", type: "asphalt", thickness: 0.1, progress: "20-80(2025-08-10)" },
+                { id: "layer_base_west", groupId: "group_road_west", name: "水稳层", type: "base", thickness: 0.3, progress: "20-80(2025-08-11)" },
+                { id: "layer_subgrade_west", groupId: "group_road_west", name: "灰土层", type: "subgrade", thickness: 0.3, progress: "20-60(2025-08-12)" },
+                { id: "layer_power_pipe_west", groupId: "group_road_west", name: "电力管道", type: "pipe_power", thickness: 0.3, progress: "20-400(2025-08-20)" },
+                { id: "l_sw_w", groupId: "group_sidewalk_west", name: "人行道", type: "sidewalk", thickness: 0.15, progress: "20-150(2025-07-01); 150-300(2025-08-05)" },
+                { id: "l_center_1", groupId: "group_center", name: "中央分隔带", type: "median", thickness: 0.75, progress: "570-800(2025-08-18)" },
+                { id: "l_sw_e", groupId: "group_sidewalk_east", name: "人行道", type: "sidewalk", thickness: 0.15, progress: "" },
+            ]
+        };
+        let roadData; 
+
+        document.addEventListener('DOMContentLoaded', init);
+
+        function init() {
+            loadDataFromLocalStorage();
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xcccccc);
+            scene.fog = new THREE.Fog(0xcccccc, 1000, 3000);
+            
+            roadContainer = new THREE.Group();
+            placeholderContainer = new THREE.Group();
+            topLevelLabelsContainer = new THREE.Group();
+            explodedLabelsContainer = new THREE.Group();
+            
+            roadContainer.add(placeholderContainer);
+            roadContainer.add(topLevelLabelsContainer);
+            roadContainer.add(explodedLabelsContainer);
+            
+            scene.add(roadContainer);
+            
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 5000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('scene-container').appendChild(renderer.domElement);
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+            scene.add(ambientLight);
+            const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            sunLight.position.set(-200, 300, 200);
+            scene.add(sunLight);
+            
+            setupEventListeners();
+            fullRefresh();
+            resetCameraView();
+            
+            animate();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('edit-structure-btn').addEventListener('click', openStructureModal);
+            document.getElementById('edit-segments-btn').addEventListener('click', openSegmentsModal);
+            document.getElementById('add-group-btn').addEventListener('click', addGroupToModalList);
+            document.getElementById('add-segment-btn').addEventListener('click', addSegmentToModalList);
+            document.getElementById('explode-button').addEventListener('click', toggleExplodedView);
+            document.getElementById('reset-button').addEventListener('click', resetToDefaults);
+            document.getElementById('stake-interval-input').addEventListener('change', (e) => {
+                let val = parseInt(e.target.value, 10);
+                roadData.stakeInterval = val > 0 ? val : 20;
+                fullRefresh();
+                saveDataToLocalStorage();
+            });
+            document.querySelectorAll('input[name="direction"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    roadData.orientation = e.target.value;
+                    updateOrientation();
+                    resetCameraView();
+                    saveDataToLocalStorage();
+                });
+            });
+            document.getElementById('filter-all').addEventListener('click', () => setFilter('all'));
+            document.getElementById('filter-month').addEventListener('click', () => setFilter('month'));
+            document.getElementById('filter-week').addEventListener('click', () => setFilter('week'));
+            
+            document.getElementById('show-exploded-labels-toggle').addEventListener('change', (e) => {
+                if(isExplodedView) {
+                    explodedLabelsContainer.visible = e.target.checked;
+                }
+            });
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function saveDataToLocalStorage() { localStorage.setItem('parametricRoadData', JSON.stringify(roadData)); }
+        function loadDataFromLocalStorage() {
+            const savedData = localStorage.getItem('parametricRoadData');
+            roadData = savedData ? JSON.parse(savedData) : JSON.parse(JSON.stringify(defaultRoadData));
+            if (!roadData.segments) roadData.segments = JSON.parse(JSON.stringify(defaultRoadData.segments));
+            if (!roadData.stakeInterval) roadData.stakeInterval = 20;
+        }
+        function resetToDefaults() {
+            if (confirm('您确定要清除所有自定义数据，恢复到初始状态吗？')) {
+                localStorage.removeItem('parametricRoadData');
+                roadData = JSON.parse(JSON.stringify(defaultRoadData));
+                alert('已清除保存的数据。');
+                setFilter('all');
+                fullRefresh();
+                resetCameraView();
+            }
+        }
+
+        function fullRefresh() {
+            document.getElementById('stake-interval-input').value = roadData.stakeInterval;
+            recalculateZOffsets();
+            recalculateAllOffsets();
+            rebuildAllMeshes();
+            setupControlPanel();
+            updateAllProgressBars();
+            updateOrientation();
+            if (isExplodedView) {
+                updateExplodedView(true);
+            }
+        }
+
+        function recalculateZOffsets() {
+            zOffsetMap.clear();
+            let accumulatedLength = 0;
+            roadData.segments.forEach(seg => {
+                zOffsetMap.set(seg.id, accumulatedLength);
+                accumulatedLength += seg.end - seg.start;
+            });
+            totalRoadLength = accumulatedLength;
+        }
+
+        function mapStakeToZ(stake) {
+            let zPos = 0;
+            for (const seg of roadData.segments) {
+                const baseZ = zOffsetMap.get(seg.id) || 0;
+                if (stake >= seg.start && stake <= seg.end) {
+                    zPos = baseZ + (stake - seg.start);
+                    return zPos;
+                }
+            }
+            if (roadData.segments.length > 0) {
+                 const firstSeg = roadData.segments[0];
+                 const lastSeg = roadData.segments[roadData.segments.length - 1];
+                 if (stake < firstSeg.start) return 0;
+                 if (stake > lastSeg.end) return totalRoadLength;
+            }
+            return zPos;
+        }
+
+        function recalculateAllOffsets() {
+            const centerGroup = roadData.groups.find(g => g.id === 'group_center');
+            const centerIndex = roadData.groups.findIndex(g => g.id === 'group_center');
+            let currentH = centerGroup ? -centerGroup.width / 2 : 0;
+            if (centerGroup) centerGroup.hOffset = currentH;
+            
+            for (let i = centerIndex - 1; i >= 0; i--) {
+                const group = roadData.groups[i];
+                currentH -= group.width;
+                group.hOffset = currentH;
+            }
+            currentH = centerGroup ? centerGroup.width / 2 : 0;
+            for (let i = centerIndex + 1; i < roadData.groups.length; i++) {
+                const group = roadData.groups[i];
+                group.hOffset = currentH;
+                currentH += group.width;
+            }
+            roadData.groups.forEach(group => {
+                const layersInGroup = roadData.layers.filter(l => l.groupId === group.id);
+                let currentV = (group.type === 'median' || group.type === 'sidewalk') ? 0.15 : 0;
+                layersInGroup.forEach(layer => {
+                    layer.vOffset = currentV;
+                    currentV -= layer.thickness;
+                });
+            });
+        }
+        
+        /**
+         * Creates a material for a pipe cap with rotated text on it.
+         * @param {string} text The character to draw.
+         * @param {THREE.Material} baseMaterial The base material of the pipe.
+         * @returns {THREE.Material} A new material with the text texture.
+         */
+        function createPipeCapMaterial(text, baseMaterial) {
+            const canvas = document.createElement('canvas');
+            const size = 256; // Texture resolution
+            canvas.width = size;
+            canvas.height = size;
+            const context = canvas.getContext('2d');
+
+            // Get the pipe's color for the background
+            const pipeColor = "#" + baseMaterial.color.getHexString();
+            context.fillStyle = pipeColor;
+            context.fillRect(0, 0, size, size);
+
+            // --- Start of Text Drawing ---
+            context.save(); // Save the current state
+
+            // Move origin to the center of the canvas
+            context.translate(size / 2, size / 2);
+
+            // Rotate 90 degrees to the left
+            context.rotate(-Math.PI / 2);
+
+            // Set font properties
+            const fontSize = size * 0.7;
+            context.font = `Bold ${fontSize}px Arial`;
+            context.fillStyle = '#FFFFFF'; // Solid white color
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            
+            // Draw the text at the new (0,0) which is the rotated center
+            context.fillText(text, 0, 0);
+
+            context.restore(); // Restore to the original state
+            // --- End of Text Drawing ---
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const capMaterial = baseMaterial.clone();
+            capMaterial.map = texture;
+            capMaterial.needsUpdate = true; // Ensure the material updates
+
+            return capMaterial;
+        }
+
+        function rebuildAllMeshes() {
+            for (let i = roadContainer.children.length - 1; i >= 0; i--) {
+                const child = roadContainer.children[i];
+                if (child.isMesh || child.isLineSegments) {
+                    roadContainer.remove(child);
+                }
+            }
+
+            Object.keys(sceneMeshes).forEach(key => delete sceneMeshes[key]);
+            
+            roadData.segments.forEach(segment => {
+                if (segment.type === 'road') {
+                    roadData.layers.forEach(layer => {
+                        const group = roadData.groups.find(g => g.id === layer.groupId);
+                        if (group) {
+                            updateComponentMeshes(layer, group, segment);
+                        }
+                    });
+                } else if (segment.type === 'bridge') {
+                    createBridgeWaterBlock(segment);
+                }
+            });
+
+            createStakeLabels();
+        }
+
+        function createMeshesForRange(range, group, layer, segment) {
+            const clampedStart = Math.max(range.start, segment.start);
+            const clampedEnd = Math.min(range.end, segment.end);
+            if (clampedStart >= clampedEnd) return;
+            
+            const materialKey = layer.type || 'base';
+            const material = range.isBuilt ? solidMaterials[materialKey] : faintMaterials[materialKey];
+            let showMarkers = false;
+
+            if (range.isBuilt && range.date) {
+                if (activeFilter.type === 'all' || 
+                   (activeFilter.start && new Date(range.date + 'T00:00:00') >= activeFilter.start && new Date(range.date + 'T00:00:00') < activeFilter.end)) {
+                    showMarkers = true;
+                }
+            }
+            
+            const length = mapStakeToZ(clampedEnd) - mapStakeToZ(clampedStart);
+            const zPos = mapStakeToZ(clampedStart) + length / 2;
+            
+            let geometry;
+            let mesh;
+
+            if (layer.type && layer.type.startsWith('pipe_')) {
+                const radius = layer.thickness / 2;
+                geometry = new THREE.CylinderGeometry(radius, radius, length, 16);
+                
+                // Create materials for the pipe caps with text
+                const firstChar = layer.name.charAt(0);
+                const capMaterial = createPipeCapMaterial(firstChar, material);
+                const materials = [
+                    material,      // side material
+                    capMaterial,   // top cap material
+                    capMaterial    // bottom cap material
+                ];
+
+                mesh = new THREE.Mesh(geometry, materials);
+                mesh.rotation.x = Math.PI / 2; 
+                mesh.position.set(group.hOffset + group.width / 2, layer.vOffset - radius, zPos - totalRoadLength / 2);
+
+            } else {
+                geometry = new THREE.BoxGeometry(group.width, layer.thickness, length);
+                mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(group.hOffset + group.width / 2, layer.vOffset - layer.thickness / 2, zPos - totalRoadLength / 2);
+            }
+            
+            mesh.userData = { originalY: mesh.position.y, layerId: layer.id };
+            if (layer.type && layer.type.startsWith('pipe_')) {
+                // For pipes, use a thresholdAngle to only draw the circular edges
+                mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 30), pipeLineMaterial));
+            } else {
+                // For other shapes, use the default black outline
+                mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), lineMaterial));
+            }
+            roadContainer.add(mesh);
+            
+            if (showMarkers) {
+                createCompletionMarkers(range, group, layer, mesh);
+            }
+            if (!sceneMeshes[layer.id]) sceneMeshes[layer.id] = [];
+            sceneMeshes[layer.id].push(mesh);
+        }
+
+        function updateComponentMeshes(layer, group, segment) {
+            const constructedRanges = parseAndSplitRanges(layer.progress);
+            let lastEnd = segment.start;
+            constructedRanges.forEach(range => {
+                createMeshesForRange({ start: lastEnd, end: range.start, date: null, isBuilt: false }, group, layer, segment);
+                createMeshesForRange(range, group, layer, segment);
+                lastEnd = range.end;
+            });
+            createMeshesForRange({ start: lastEnd, end: segment.end, date: null, isBuilt: false }, group, layer, segment);
+        }
+
+        function createBridgeWaterBlock(segment) {
+            const length = segment.end - segment.start;
+            const zPos = mapStakeToZ(segment.start) + length / 2;
+            const waterGeom = new THREE.BoxGeometry(200, 2, length);
+            const waterMesh = new THREE.Mesh(waterGeom, new THREE.MeshStandardMaterial({ color: 0x6ca0dc, transparent: true, opacity: 0.75 }));
+            waterMesh.position.set(0, -9.5, zPos - totalRoadLength / 2);
+            roadContainer.add(waterMesh);
+        }
+
+        function createStakeLabels() {
+            while (topLevelLabelsContainer.children.length > 0) {
+                topLevelLabelsContainer.remove(topLevelLabelsContainer.children[0]);
+            }
+            
+            const interval = roadData.stakeInterval || 20;
+            roadData.segments.forEach(segment => {
+                if (segment.type === 'road') {
+                    const start = segment.start;
+                    const end = segment.end;
+                    const VISUAL_THRESHOLD = 1.0;
+                    topLevelLabelsContainer.add(makeTextSprite(start, 0));
+                    
+                    let loopStartStake = Math.ceil(start / interval) * interval;
+                    if (Math.abs(start - loopStartStake) < 0.001) {
+                        loopStartStake += interval;
+                    } else if (loopStartStake - start < VISUAL_THRESHOLD) {
+                        loopStartStake += interval;
+                    }
+                    for (let stake = loopStartStake; stake < end; stake += interval) {
+                        if (end - stake < VISUAL_THRESHOLD) continue;
+                        topLevelLabelsContainer.add(makeTextSprite(stake, 0));
+                    }
+                    if (Math.abs(end - start) > 0.001) {
+                       topLevelLabelsContainer.add(makeTextSprite(end, 0));
+                    }
+                }
+            });
+        }
+
+        function createCompletionMarkers(range, group, layer, parentMesh) {
+            const parentWidth = parentMesh.geometry.parameters.width;
+            const parentHeight = parentMesh.geometry.parameters.height;
+            const parentDepth = parentMesh.geometry.parameters.depth;
+            const yPos_local = parentHeight / 2 + 0.02; 
+            
+            const createRedLine = (zPos_local) => {
+                const points = [
+                    new THREE.Vector3(-parentWidth / 2, yPos_local, zPos_local),
+                    new THREE.Vector3(parentWidth / 2, yPos_local, zPos_local)
+                ];
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const redLine = new THREE.Line(geometry, redLineMaterial);
+                parentMesh.add(redLine);
+            };
+
+            createRedLine(-parentDepth / 2);
+            createRedLine(parentDepth / 2);
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const fontSize = 128;
+            context.font = `Bold ${fontSize}px Arial`;
+            
+            const textMetrics = context.measureText(range.date);
+            const textWidth = textMetrics.width;
+            const textAspectRatio = textWidth / fontSize;
+            
+            const finalLabelHeight = parentWidth * 0.8;
+            const finalLabelWidth = finalLabelHeight * textAspectRatio;
+            
+            canvas.width = textWidth;
+            canvas.height = fontSize;
+            context.font = `Bold ${fontSize}px Arial`;
+            context.fillStyle = 'red';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(range.date, textWidth / 2, fontSize / 2);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+            
+            const planeGeom = new THREE.PlaneGeometry(finalLabelWidth, finalLabelHeight);
+            const labelMesh = new THREE.Mesh(planeGeom, material);
+            
+            const textZ_local = parentDepth / 2 - (finalLabelWidth / 2) - 0.5;
+            labelMesh.position.set(0, yPos_local, textZ_local);
+            
+            labelMesh.rotation.order = 'YXZ';
+            labelMesh.rotation.y = -Math.PI / 2;
+            labelMesh.rotation.x = -Math.PI / 2;
+            labelMesh.rotation.z = Math.PI;
+
+            parentMesh.add(labelMesh);
+        }
+
+        function resetCameraView() {
+            const isEW = roadData.orientation === 'ew';
+            camera.position.set(isEW ? totalRoadLength/2 + 50 : 50, 240, isEW ? 50 : totalRoadLength/2 + 50);
+            controls.target.set(0, 0, 0);
+        }
+
+        function updateOrientation() {
+            const isEW = roadData.orientation === 'ew';
+            const rotationY = isEW ? -Math.PI / 2 : 0;
+            roadContainer.rotation.y = rotationY;
+            document.getElementById(isEW ? 'dir-ew' : 'dir-ns').checked = true;
+        }
+
+        function toggleExplodedView() {
+            isExplodedView = !isExplodedView;
+            document.getElementById('explode-button').textContent = isExplodedView ? '恢复视图' : '垂直分离';
+            updateExplodedView(isExplodedView);
+        }
+        
+        function updateExplodedView(explode) {
+            while (placeholderContainer.children.length > 0) {
+                placeholderContainer.remove(placeholderContainer.children[0]);
+            }
+             while (explodedLabelsContainer.children.length > 0) {
+                explodedLabelsContainer.remove(explodedLabelsContainer.children[0]);
+            }
+
+            if (explode) {
+                explodedLabelsContainer.visible = document.getElementById('show-exploded-labels-toggle').checked;
+
+                const constantGap = 35;
+                const placeholderThickness = 0.5;
+                let maxLayerCount = 0;
+                roadData.groups.forEach(g => {
+                    const count = roadData.layers.filter(l => l.groupId === g.id).length;
+                    if (count > maxLayerCount) maxLayerCount = count;
+                });
+
+                if (maxLayerCount === 0) return;
+
+                for (let planeIndex = 0; planeIndex < maxLayerCount; planeIndex++) {
+                    const yPos = -(planeIndex * constantGap) - (placeholderThickness / 2);
+                    const interval = roadData.stakeInterval || 20;
+                    
+                    roadData.segments.forEach(segment => {
+                        if (segment.type === 'road') {
+                            const start = segment.start;
+                            const end = segment.end;
+                            const VISUAL_THRESHOLD = 1.0;
+                            explodedLabelsContainer.add(makeTextSprite(start, yPos));
+                            let loopStartStake = Math.ceil(start / interval) * interval;
+                            if (Math.abs(start - loopStartStake) < 0.001) loopStartStake += interval;
+                            else if (loopStartStake - start < VISUAL_THRESHOLD) loopStartStake += interval;
+                            for (let stake = loopStartStake; stake < end; stake += interval) {
+                                if (end - stake < VISUAL_THRESHOLD) continue;
+                                explodedLabelsContainer.add(makeTextSprite(stake, yPos));
+                            }
+                            if (Math.abs(end - start) > 0.001) explodedLabelsContainer.add(makeTextSprite(end, yPos));
+                        }
+                    });
+
+                    roadData.groups.forEach(group => {
+                        const layersInGroup = roadData.layers.filter(l => l.groupId === group.id).sort((a, b) => b.vOffset - a.vOffset);
+                        const currentLayer = layersInGroup[planeIndex];
+                        
+                        if (currentLayer) { 
+                            if (sceneMeshes[currentLayer.id]) {
+                                const layerData = roadData.layers.find(l => l.id === currentLayer.id);
+                                const isPipe = layerData && layerData.type.startsWith('pipe_');
+
+                                sceneMeshes[currentLayer.id].forEach(mesh => {
+                                    if (isPipe) {
+                                        mesh.position.y = -(planeIndex * constantGap);
+                                    } else {
+                                        const meshHeight = mesh.geometry.parameters.height;
+                                        mesh.position.y = -(planeIndex * constantGap) - (meshHeight / 2);
+                                    }
+                                });
+                            }
+                        } else { 
+                            roadData.segments.forEach(segment => {
+                                if (segment.type === 'road') {
+                                    const length = segment.end - segment.start;
+                                    const segmentStartPos = mapStakeToZ(segment.start);
+                                    const zPos = segmentStartPos + length / 2;
+                                    const geometry = new THREE.BoxGeometry(group.width, placeholderThickness, length);
+                                    const mesh = new THREE.Mesh(geometry, placeholderMaterial);
+                                    mesh.position.set(group.hOffset + group.width / 2, yPos, zPos - totalRoadLength / 2);
+                                    placeholderContainer.add(mesh);
+                                }
+                            });
+                        }
+                    });
+                }
+            } else {
+                explodedLabelsContainer.visible = false;
+                for (const layerId in sceneMeshes) {
+                    sceneMeshes[layerId].forEach(mesh => {
+                        mesh.position.y = mesh.userData.originalY;
+                    });
+                }
+            }
+        }
+        
+        function setupControlPanel() {
+            const container = document.getElementById('groups-container');
+            container.innerHTML = '';
+            roadData.groups.forEach(group => {
+                const details = document.createElement('details');
+                details.open = true;
+                const summary = document.createElement('summary');
+                summary.innerHTML = `<span class="summary-title">${group.name}</span>
+                                     <div class="summary-items">
+                                         <div id="progress-group-${group.id}"></div>
+                                         <span class="summary-box">${group.width}m</span>
+                                     </div>`;
+                const editorDiv = document.createElement('div');
+                editorDiv.className = 'layer-editor';
+                const layersInGroup = roadData.layers.filter(l => l.groupId === group.id);
+                layersInGroup.forEach((layer, index) => {
+                    editorDiv.appendChild(createLayerRow(layer, index, layersInGroup.length));
+                });
+                details.appendChild(summary);
+                details.appendChild(editorDiv);
+                container.appendChild(details);
+            });
+        }
+        
+        function createLayerRow(layer, index, totalLayers) {
+            const row = document.createElement('div');
+            row.className = 'layer-row';
+            row.dataset.layerId = layer.id;
+            const topRow = document.createElement('div');
+            topRow.className = 'layer-top-row';
+            const bottomRow = document.createElement('div');
+            bottomRow.className = 'layer-bottom-row';
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.value = layer.name;
+            nameInput.addEventListener('change', (e) => { layer.name = e.target.value; saveDataToLocalStorage(); });
+            const typeSelect = document.createElement('select');
+            Object.keys(typeTranslations).forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = typeTranslations[type];
+                if (type === layer.type) option.selected = true;
+                typeSelect.appendChild(option);
+            });
+            typeSelect.addEventListener('change', (e) => { layer.type = e.target.value; fullRefresh(); saveDataToLocalStorage(); });
+            const thicknessInput = document.createElement('input');
+            thicknessInput.type = 'number';
+            thicknessInput.value = layer.thickness;
+            thicknessInput.step = 0.01;
+            thicknessInput.addEventListener('change', (e) => { layer.thickness = parseFloat(e.target.value) || 0; fullRefresh(); saveDataToLocalStorage(); });
+            bottomRow.appendChild(nameInput);
+            bottomRow.appendChild(typeSelect);
+            bottomRow.appendChild(document.createTextNode('厚:'));
+            bottomRow.appendChild(thicknessInput);
+            const progressDiv = document.createElement('div');
+            progressDiv.className = 'progress-input-container';
+            const progressInput = document.createElement('input');
+            progressInput.type = 'text';
+            progressInput.placeholder = '例: 20-500(2025-08-18)';
+            progressInput.value = layer.progress;
+            progressInput.addEventListener('change', (e) => { layer.progress = e.target.value; fullRefresh(); saveDataToLocalStorage(); });
+            progressDiv.appendChild(progressInput);
+            const progressbarDiv = document.createElement('div');
+            progressbarDiv.id = `progress-layer-${layer.id}`;
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'layer-actions';
+            const buttons = [
+                { text: '+', title: '下方插入', action: () => addLayer(layer.groupId, index) },
+                { text: 'x', title: '删除', action: () => removeLayer(layer.id) },
+                { text: '↑', title: '上移', action: () => moveLayer(layer.id, -1), disabled: index === 0 },
+                { text: '↓', title: '下移', action: () => moveLayer(layer.id, 1), disabled: index === totalLayers - 1 },
+            ];
+            buttons.forEach(btnInfo => {
+                const btn = document.createElement('button');
+                btn.textContent = btnInfo.text;
+                btn.title = btnInfo.title;
+                btn.onclick = btnInfo.action;
+                if(btnInfo.disabled) btn.disabled = true;
+                actionsDiv.appendChild(btn);
+            });
+            topRow.appendChild(progressDiv);
+            topRow.appendChild(progressbarDiv);
+            topRow.appendChild(actionsDiv);
+            row.appendChild(topRow);
+            row.appendChild(bottomRow);
+            return row;
+        }
+
+        function updateAllProgressBars() {
+            const buildableSegments = roadData.segments.filter(s => s.type === 'road');
+            let totalBuildableLength = buildableSegments.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+            if (totalBuildableLength === 0) totalBuildableLength = 0.0001;
+            let grandTotalCompletedVolume = 0;
+            let grandTotalPotentialVolume = 0;
+            roadData.groups.forEach(group => {
+                let sectionCompletedVolume = 0;
+                let sectionPotentialVolume = 0;
+                const layersInGroup = roadData.layers.filter(l => l.groupId === group.id);
+                layersInGroup.forEach(layer => {
+                    const progressRanges = parseAndSplitRanges(layer.progress);
+                    let completedLength = 0;
+                    
+                    let buildableLengthForLayer = buildableSegments.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+                    if (buildableLengthForLayer === 0) buildableLengthForLayer = 0.0001;
+
+                    progressRanges.forEach(pRange => {
+                        buildableSegments.forEach(bSeg => {
+                            const overlapStart = Math.max(pRange.start, bSeg.start);
+                            const overlapEnd = Math.min(pRange.end, bSeg.end);
+                            if (overlapStart < overlapEnd) {
+                                completedLength += overlapEnd - overlapStart;
+                            }
+                        });
+                    });
+                    
+                    const layerPercentage = (completedLength / buildableLengthForLayer) * 100;
+                    renderProgressBar(`progress-layer-${layer.id}`, layerPercentage);
+                    
+                    const isPipe = layer.type && layer.type.startsWith('pipe_');
+                    const layerVolume = (isPipe ? 1 : group.width) * layer.thickness * completedLength;
+                    sectionCompletedVolume += layerVolume;
+                    sectionPotentialVolume += (isPipe ? 1 : group.width) * layer.thickness * buildableLengthForLayer;
+
+                });
+                
+                const sectionPercentage = sectionPotentialVolume > 0 ? (sectionCompletedVolume / sectionPotentialVolume) * 100 : 0;
+                renderProgressBar(`progress-group-${group.id}`, sectionPercentage);
+                grandTotalCompletedVolume += sectionCompletedVolume;
+                grandTotalPotentialVolume += sectionPotentialVolume;
+            });
+            const totalPercentage = grandTotalPotentialVolume > 0 ? (grandTotalCompletedVolume / grandTotalPotentialVolume) * 100 : 0;
+            renderProgressBar('total-progress-container', totalPercentage);
+        }
+
+        function renderProgressBar(containerId, percentage) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const percentageFixed = Math.min(100, percentage).toFixed(1);
+            container.innerHTML = `
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" style="width: ${percentageFixed}%;"></div>
+                    <div class="progress-bar-text">${percentageFixed}%</div>
+                </div>`;
+        }
+
+        function addLayer(groupId, index) {
+            const defaultType = 'base';
+            const newLayer = { id: `L_${Date.now()}`, groupId, name: typeTranslations[defaultType], type: defaultType, thickness: 0.2, progress: "" };
+            const layersInGroup = roadData.layers.filter(l => l.groupId === groupId);
+            const globalIndex = roadData.layers.findIndex(l => l.id === layersInGroup[index].id);
+            roadData.layers.splice(globalIndex + 1, 0, newLayer);
+            fullRefresh(); saveDataToLocalStorage();
+        }
+
+        function removeLayer(layerId) {
+            roadData.layers = roadData.layers.filter(l => l.id !== layerId);
+            fullRefresh(); saveDataToLocalStorage();
+        }
+        
+        function moveLayer(layerId, direction) {
+            const index = roadData.layers.findIndex(l => l.id === layerId);
+            if (index === -1) return;
+            const layer = roadData.layers[index];
+            const layersInGroup = roadData.layers.filter(l => l.groupId === layer.groupId);
+            const groupIndex = layersInGroup.findIndex(l => l.id === layerId);
+            if ((direction === -1 && groupIndex > 0) || (direction === 1 && groupIndex < layersInGroup.length - 1)) {
+                 const otherLayerGroupIndex = groupIndex + direction;
+                 const otherLayerId = layersInGroup[otherLayerGroupIndex].id;
+                 const otherLayerGlobalIndex = roadData.layers.findIndex(l => l.id === otherLayerId);
+                [roadData.layers[index], roadData.layers[otherLayerGlobalIndex]] = [roadData.layers[otherLayerGlobalIndex], roadData.layers[index]];
+            }
+            fullRefresh(); saveDataToLocalStorage();
+        }
+        
+        function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+        
+        function openStructureModal() {
+            const list = document.getElementById('structure-list');
+            list.innerHTML = '';
+            roadData.groups.forEach((group, index) => {
+                const li = createGroupRow(group, index, roadData.groups.length);
+                list.appendChild(li);
+            });
+            openModal('structure-modal');
+        }
+
+        function createGroupRow(group, index, total) {
+            const li = document.createElement('li');
+            li.dataset.groupId = group.id;
+            li.innerHTML = `
+                <span>名称:</span>
+                <input type="text" value="${group.name}" class="group-name-input" style="flex-grow: 1;">
+                <span>宽度(m):</span>
+                <input type="number" value="${group.width}" step="0.1" class="group-width-input" style="width: 60px;">
+                <span>类型:</span>
+                <select class="group-type-select">
+                    <option value="road" ${group.type === 'road' ? 'selected' : ''}>车行道</option>
+                    <option value="sidewalk" ${group.type === 'sidewalk' ? 'selected' : ''}>人行道</option>
+                    <option value="median" ${group.type === 'median' ? 'selected' : ''}>分隔带</option>
+                </select>
+                <div class="structure-actions">
+                    <button title="上移" onclick="moveGroupInModal('${group.id}', -1)" ${index === 0 ? 'disabled' : ''}>↑</button>
+                    <button title="下移" onclick="moveGroupInModal('${group.id}', 1)" ${index === total - 1 ? 'disabled' : ''}>↓</button>
+                    <button title="删除" onclick="removeGroupFromModal('${group.id}')">x</button>
+                </div>
+            `;
+            return li;
+        }
+        
+        function openSegmentsModal() {
+            const list = document.getElementById('segment-list');
+            list.innerHTML = '';
+            roadData.segments.forEach(segment => {
+                const li = createSegmentRow(segment);
+                list.appendChild(li);
+            });
+            openModal('segments-modal');
+        }
+
+        function createSegmentRow(segment) {
+            const li = document.createElement('li');
+            li.dataset.segmentId = segment.id;
+            li.innerHTML = `
+                <span>起点桩号:</span><input type="number" value="${segment.start}" step="0.001" class="segment-start-input" style="width: 90px;">
+                <span>终点桩号:</span><input type="number" value="${segment.end}" step="0.001" class="segment-end-input" style="width: 90px;">
+                <select class="segment-type-select" style="flex-grow: 1;">
+                    <option value="road" ${segment.type === 'road' ? 'selected' : ''}>道路</option>
+                    <option value="bridge" ${segment.type === 'bridge' ? 'selected' : ''}>桥梁/水体</option>
+                </select>
+                <div class="segment-actions">
+                    <button title="删除" onclick="removeSegmentFromModal('${segment.id}')">x</button>
+                </div>
+            `;
+            return li;
+        }
+
+        function applyStructureChanges() {
+            const list = document.getElementById('structure-list');
+            const newGroups = [];
+            const oldGroupIds = new Set(roadData.groups.map(g => g.id)); // Store old IDs
+
+            const children = list.getElementsByTagName('li');
+            for (let li of children) {
+                newGroups.push({
+                    id: li.dataset.groupId,
+                    name: li.querySelector('.group-name-input').value,
+                    width: parseFloat(li.querySelector('.group-width-input').value) || 0,
+                    type: li.querySelector('.group-type-select').value
+                });
+            }
+            
+            roadData.groups = newGroups;
+
+            // For any new group, add a default layer
+            roadData.groups.forEach(group => {
+                if (!oldGroupIds.has(group.id)) {
+                    const defaultType = 'base'; // Default to '水稳层'
+                    const newLayer = {
+                        id: `L_${Date.now()}_${Math.random()}`,
+                        groupId: group.id,
+                        name: typeTranslations[defaultType],
+                        type: defaultType,
+                        thickness: 0.2,
+                        progress: ""
+                    };
+                    roadData.layers.push(newLayer);
+                }
+            });
+
+            // Clean up layers from any deleted groups
+            const validGroupIds = new Set(roadData.groups.map(g => g.id));
+            roadData.layers = roadData.layers.filter(layer => validGroupIds.has(layer.groupId));
+            
+            saveDataToLocalStorage();
+            fullRefresh();
+            closeModal('structure-modal');
+        }
+
+        function applySegmentChanges() {
+            const list = document.getElementById('segment-list');
+            const newSegments = [];
+            const children = list.getElementsByTagName('li');
+            for (let li of children) {
+                newSegments.push({
+                    id: li.dataset.segmentId,
+                    start: parseFloat(li.querySelector('.segment-start-input').value) || 0,
+                    end: parseFloat(li.querySelector('.segment-end-input').value) || 0,
+                    type: li.querySelector('.segment-type-select').value
+                });
+            }
+            newSegments.sort((a, b) => a.start - b.start);
+            roadData.segments = newSegments;
+            saveDataToLocalStorage();
+            fullRefresh();
+            closeModal('segments-modal');
+        }
+
+        function addGroupToModalList() {
+            const newGroup = { id: `group_${Date.now()}`, name: "新建区块", width: 3.5, type: "road" };
+            const list = document.getElementById('structure-list');
+            const li = createGroupRow(newGroup, list.children.length, list.children.length + 1);
+            list.appendChild(li);
+        }
+
+        function addSegmentToModalList() {
+            const list = document.getElementById('segment-list');
+            const lastChild = list.lastElementChild;
+            let lastEnd = 0;
+            if (lastChild) {
+                lastEnd = parseFloat(lastChild.querySelector('.segment-end-input').value) || 0;
+            }
+            const newSegment = { id: `seg_${Date.now()}`, start: lastEnd, end: lastEnd + 100, type: 'road' };
+            const li = createSegmentRow(newSegment);
+            list.appendChild(li);
+        }
+        
+        function removeGroupFromModal(groupId) {
+            const li = document.querySelector(`#structure-list li[data-group-id="${groupId}"]`);
+            if (li) li.remove();
+        }
+        
+        function moveGroupInModal(groupId, direction) {
+            const list = document.getElementById('structure-list');
+            const items = Array.from(list.children);
+            const index = items.findIndex(li => li.dataset.groupId === groupId);
+
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= items.length) return;
+
+            let tempGroups = [];
+            for (let li of items) {
+                tempGroups.push({
+                    id: li.dataset.groupId,
+                    name: li.querySelector('.group-name-input').value,
+                    width: parseFloat(li.querySelector('.group-width-input').value) || 0,
+                    type: li.querySelector('.group-type-select').value
+                });
+            }
+            
+            [tempGroups[index], tempGroups[newIndex]] = [tempGroups[newIndex], tempGroups[index]];
+
+            list.innerHTML = '';
+            tempGroups.forEach((group, i) => {
+                const li = createGroupRow(group, i, tempGroups.length);
+                list.appendChild(li);
+            });
+        }
+
+        function removeSegmentFromModal(segmentId) {
+            const li = document.querySelector(`#segment-list li[data-segment-id="${segmentId}"]`);
+            if (li) li.remove();
+        }
+        
+        function makeTextSprite(stakeValue, yPosition) {
+            const stake = Number(stakeValue.toFixed(3));
+            const km = Math.floor(stake / 1000);
+            const m = stake % 1000;
+            const mStr = m.toString().includes('.') ? m.toFixed(2).replace(/\.?0+$/, '') : String(Math.round(m)).padStart(3, '0');
+            const message = `K${km}+${mStr}`;
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 512; canvas.height = 128;
+            context.font = `Bold 60px Arial`;
+            context.fillStyle = 'rgba(0, 0, 0, 1.0)';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(message, 256, 64);
+            const texture = new THREE.CanvasTexture(canvas);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
+            sprite.scale.set(50, 12.5, 1.0);
+            const zPos = mapStakeToZ(stake) - totalRoadLength / 2;
+            sprite.position.set(-45, yPosition, zPos);
+            return sprite;
+        }
+
+        function setFilter(type) {
+            if (type === 'all') {
+                activeFilter = { type: 'all', start: null, end: null };
+            } else if (type === 'month') {
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = today.getMonth();
+                const startDate = new Date(year, month - 1, 26, 0, 0, 0, 0);
+                const endDate = new Date(year, month, 26, 0, 0, 0, 0);
+                activeFilter = { type: 'month', start: startDate, end: endDate };
+            } else if (type === 'week') {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dayOfWeek = today.getDay();
+                const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+                const startDate = new Date(today.setDate(diff));
+                const endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + 7);
+                activeFilter = { type: 'week', start: startDate, end: endDate };
+            }
+            document.querySelectorAll('.filter-buttons button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`filter-${type}`).classList.add('active');
+            fullRefresh();
+        }
+
+        function parseAndSplitRanges(progressString) {
+            const ranges = [];
+            if (!progressString) return ranges;
+            const regex = /(\d+\.?\d*)\s*-\s*(\d+\.?\d*)\s*(?:\(\s*(\d{4}-\d{1,2}-\d{1,2})\s*\))?/g;
+            progressString.replace(/；/g, ';').split(';').forEach(seg => {
+                seg.trim().replace(regex, (match, p1, p2, p3) => {
+                    const start = parseFloat(p1);
+                    const end = parseFloat(p2);
+                    if (!isNaN(start) && !isNaN(end) && start < end) {
+                        ranges.push({ start, end, date: p3 || null, isBuilt: true });
+                    }
+                });
+            });
+            return ranges.sort((a,b)=>a.start - b.start);
+        }
+
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+    </script>
+</body>
+</html>
